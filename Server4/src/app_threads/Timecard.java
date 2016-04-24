@@ -28,12 +28,10 @@ import tools.Write;
  * 
  * @author Nicholas Caputo, npocaputo@GMail.com, (847) 630 7370
  * 
- *         TODO instead of showing the item number when clocking in or out on a
- *         work order, we have to show the number that the item was stored as.
- *         So instead of 130817, we have to show "Item #1"
  *
  */
-public class Timecard {
+public class Timecard extends Thread {
+	
 	private String rootPath;
 	private String rmAppServerPath;
 	private String entry;

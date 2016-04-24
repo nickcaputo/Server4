@@ -42,7 +42,7 @@ import tools.Write;
  * @author Nicholas Caputo, npocaputo@GMail.com, (847) 630 7370
  *
  */
-public class Inventory {
+public class Inventory extends Thread {
 
 	private static final String APP_NAME = "Inventory";
 

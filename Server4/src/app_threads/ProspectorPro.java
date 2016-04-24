@@ -17,6 +17,7 @@ import java.util.Scanner;
 import java.time.LocalDateTime;
 
 import main_threads.Server4;
+import tools.SavedValues;
 import tools.DatabaseTools;
 import tools.StrMods;
 import tools.Write;
@@ -26,12 +27,12 @@ import tools.Write;
  * @author Nicholas Caputo, npocaputo@GMail.com, (847) 630 7370
  *
  */
-public class ProspectorPro {
+public class ProspectorPro extends Thread {
 
 	private static final String APP_NAME = "Prospector Pro";
 
-	private static final String SEPARATOR = "^";
-	private static final String ITEM_SEP = "|";
+	private static final String SEPARATOR = SavedValues.getContentSeparator();
+	private static final String ITEM_SEP = SavedValues.getItemSeparator();
 
 	private Socket socket;
 	private PrintWriter outToClient;
@@ -194,89 +195,55 @@ public class ProspectorPro {
 
 			switch (command) {
 
-			case "qsActivities":
-				activityQs(id, dbPass, pProDbPath, command);
-				break;
+			case "newContact":
 
-			case "insertContact":
-			case "newActivity":
 				addNewItemToDb(thereIsContentInTheRequest, employeeInfoSet, id, dbPass, pProDbPath, command);
 				break;
 
 			case "retrieveContact":
-			case "retrieveToEdit":
-			case "retrieveActivity":
+
 				getSpecificItem(id, command, dbPass, pProDbPath);
 				break;
 
 			case "qs":
 			case "qsMore":
+
 				contactQs(dbPass, pProDbPath, id, command);
 				break;
 
 			case "search":
+
 				search(dbPass, pProDbPath, command);
 				break;
 
-			case "edit":
+			case "editContact":
+
 				editContact(dbPass, pProDbPath, id, command, thereIsContentInTheRequest);
 				break;
 
-			case "editActivity":
-				editActivity(dbPass, pProDbPath, id, command, thereIsContentInTheRequest);
+			case "simpleUserActivityList":
+
+				getSimpleActivityList(dbPass, pProDbPath, id);
 				break;
 
-			case "dateRangeSearch":
-			case "singleDateSearch":
-				dateRangeSearch(dbPass, pProDbPath, id, command);
-				break;
-
-			case "simpleActivityList":
-				log("RECIEVED COMMAND TO GET SIMPLE ACTIVITIES");
-				ResultSet results = null;
-				String name = null;
-
-				try {
-					results = DatabaseTools.searchActivities_noQueries(dbPass, pProDbPath, id);
-					name = DatabaseTools.getCustomerNameFromId(dbPass, pProDbPath, id);
-				} catch (SQLException err) {
-					err.printStackTrace();
-				}
-
-				if (results != null) {
-					serializeSimpleActivity(results, name, dbPass, pProDbPath);
-				}
-
-				break;
 			case "simpleDateSearch":
-				log("RETRIEVED COMMAND TO SEARCH DATE");
-				ResultSet search = null;
 
-				try {
-					search = DatabaseTools.searchSingleDate_noQueries(dbPass, pProDbPath, id);
-				} catch (SQLException err) {
-					err.printStackTrace();
-				}
-
-				if (search != null) {
-					serializeSimpleActivity(search, null, dbPass, pProDbPath);
-				}
+				simpleDateSearch(dbPass, pProDbPath);
 				break;
+
 			case "simpleDateRange":
-				log("RETRIEVED COMMAND TO SEARCH DATE RANGE");
-				ResultSet dateRange = null;
 
-				try {
-					dateRange = DatabaseTools.searchDateRange_noQueries(dbPass, pProDbPath, requestFromPhone[3],
-							requestFromPhone[4]);
-				} catch (SQLException err) {
-					err.printStackTrace();
-				}
+				simpleDateRange(dbPass, pProDbPath);
+				break;
 
-				if (dateRange != null) {
-					serializeSimpleActivity(dateRange, null, dbPass, pProDbPath);
-				}
+			case "editActivitySimple":
 
+				editSimpleActivityNotes(dbPass, pProDbPath, id);
+				break;
+
+			case "editActivityDateSimple":
+
+				editSimpleActivityDate(dbPass, pProDbPath, id);
 				break;
 			}
 		}
@@ -331,25 +298,6 @@ public class ProspectorPro {
 		 * 
 		 * 
 		 */
-
-		/**
-		 * Performs the quick search actions.
-		 * 
-		 * @param id
-		 * @param dbPass
-		 * @param pProDbPath
-		 * @param command
-		 */
-		private void activityQs(String id, String dbPass, String pProDbPath, String command) {
-			log("Quick searching activities for contact " + id + '.');
-
-			try {
-				ResultSet activityList = DatabaseTools.searchActivities(dbPass, pProDbPath, id);
-				serializeActivity(activityList, command, dbPass, pProDbPath);
-			} catch (SQLException err) {
-				err.printStackTrace();
-			}
-		}
 
 		/**
 		 * Begins the process to add an item (contact or activity) into the main
@@ -528,73 +476,139 @@ public class ProspectorPro {
 			}
 		}
 
-		/**
-		 * Begins the process to edit an activity in the database.
-		 * 
-		 * @param dbPass
-		 * @param pProDbPath
-		 * @param id
-		 * @param command
-		 * @param thereIsContentInTheRequest
-		 */
-		private void editActivity(String dbPass, String pProDbPath, String id, String command,
-				boolean thereIsContentInTheRequest) {
-			log("Performing edit activity functions.");
-			if (thereIsContentInTheRequest) {
-				log("There is something to update");
+		private void getSimpleActivityList(String dbPass, String pProDbPath, String id) {
+			log("RECIEVED COMMAND TO GET SIMPLE ACTIVITIES");
+			ResultSet results = null;
+			String name = null;
 
-				buildSQLQuery_editActivity(id, dbPass, pProDbPath);
+			try {
+				results = DatabaseTools.searchActivities_noQueries(dbPass, pProDbPath, id);
+				name = DatabaseTools.getCustomerNameFromId(dbPass, pProDbPath, id);
+			} catch (SQLException err) {
+				err.printStackTrace();
+			}
 
-				try {
-					ResultSet activityInformation = DatabaseTools.getActivity(pProDbPath, dbPass, id);
-
-					if (activityInformation.next()) {
-
-						activityInformation.previous();
-						resultBuilder.append("Record updated. ");
-						serializeActivity(activityInformation, command, dbPass, pProDbPath);
-
-					} else {
-						resultBuilder.append("Try recieving the edit activity information again. ");
-					}
-				} catch (SQLException err) {
-					err.printStackTrace();
-				}
-			} else {
-				resultBuilder.append("Update was not requested. ");
+			if (results != null) {
+				serializeSimpleActivityList(results, name, dbPass, pProDbPath);
 			}
 		}
 
 		/**
-		 * Performs a search for a activities based on date range, or a single
-		 * date.
+		 * This is the delegate method for searching all activities on a single
+		 * date
 		 * 
 		 * @param dbPass
 		 * @param pProDbPath
-		 * @param id
-		 * @param command
 		 */
-		private void dateRangeSearch(String dbPass, String pProDbPath, String id, String command) {
-			log("Performing date and activities search functions.");
+		private void simpleDateSearch(String dbPass, String pProDbPath) {
+			log("RETRIEVED COMMAND TO SEARCH DATE");
+			ResultSet search = null;
+			
+			String date = requestFromPhone[3];
 
 			try {
-				ResultSet search = null;
-
-				if (command.equals("dateRangeSearch")) {
-					search = DatabaseTools.searchDateRange(dbPass, pProDbPath, requestFromPhone[3],
-							requestFromPhone[4]);
-				} else if (command.equals("singleDateSearch")) {
-					search = DatabaseTools.searchSingleDate(dbPass, pProDbPath, requestFromPhone[3]);
-				}
-
-				/*
-				 * Takes the contents of the resultSet and converts it into a
-				 * readable text string, which the phone can decipher when it
-				 * receives it on the other side of the connection
-				 */
-				serializeActivity(search, command, dbPass, pProDbPath);
+				search = DatabaseTools.searchSingleDate_noQueries(dbPass, pProDbPath, date);
 			} catch (SQLException err) {
 				err.printStackTrace();
+			}
+
+			if (search != null) {
+				serializeSimpleActivityList(search, null, dbPass, pProDbPath);
+			}
+		}
+
+		/**
+		 * This is the delegate method for searching all activities between a
+		 * range of dates
+		 * 
+		 * @param dbPass
+		 * @param pProDbPath
+		 */
+		private void simpleDateRange(String dbPass, String pProDbPath) {
+			log("RETRIEVED COMMAND TO SEARCH DATE RANGE");
+			ResultSet dateRange = null;
+			
+			String fromDate = requestFromPhone[3];
+			String toDate = requestFromPhone[4];
+
+			try {
+				dateRange = DatabaseTools.searchDateRange_noQueries(dbPass, pProDbPath, fromDate,
+						toDate);
+			} catch (SQLException err) {
+				err.printStackTrace();
+			}
+
+			if (dateRange != null) {
+				serializeSimpleActivityList(dateRange, null, dbPass, pProDbPath);
+			}
+		}
+
+		private void editSimpleActivityNotes(String dbPass, String pProDbPath, String id) {
+			log("RETRIEVED COMMAND TO EDIT SIMPLE ACTIVITY NOTES");
+
+			for (int i = 0; i < requestFromPhone.length; i++) {
+				String item = requestFromPhone[i];
+				log("Item " + i + ": " + item);
+			}
+
+			if (requestFromPhone.length >= 7) {
+				String activityType = requestFromPhone[4];
+				String custId = requestFromPhone[5];
+				String note = requestFromPhone[6];
+
+				try {
+					ResultSet set = null;
+					int rowsUpdated = DatabaseTools.updateActivityNotes_noQueries(dbPass, pProDbPath, id, activityType,
+							note);
+					set = DatabaseTools.getSimpleActivity_noQueries(dbPass, pProDbPath, activityType, id);
+					String name = DatabaseTools.getCustomerNameFromId(dbPass, pProDbPath, custId);
+
+					log("Customer name is " + name);
+					log("ROWS UPDATED: " + rowsUpdated);
+
+					log("SET IS ACTIVE " + (set != null));
+					if (set != null) {
+						serializeSimpleActivityList(set, name, dbPass, pProDbPath);
+					}
+
+				} catch (SQLException err) {
+					err.printStackTrace();
+				}
+			} else {
+				log("Not enough data was sent through, the request was " + requestFromPhone.length + " items long.");
+			}
+		}
+		
+		private void editSimpleActivityDate(String dbPass, String pProDbPath, String id) {
+			for (int i = 0; i < requestFromPhone.length; i++) {
+				log("Item " + i + ": " + requestFromPhone[i]);
+			}
+
+			if (requestFromPhone.length >= 7) {
+				String activityType = requestFromPhone[4];
+				String custId = requestFromPhone[5];
+				boolean editingCompleted = Boolean.parseBoolean(requestFromPhone[6]);
+				String dateTime = requestFromPhone[7];
+
+				try {
+					int rowsUpdated = DatabaseTools.changeActivityDate_noQueries(dbPass, pProDbPath, activityType,
+							id, editingCompleted, dateTime);
+					log("Updated " + rowsUpdated + " rows in the table.");
+
+					ResultSet set = DatabaseTools.getSimpleActivity_noQueries(dbPass, pProDbPath, activityType, id);
+					String name = DatabaseTools.getCustomerNameFromId(dbPass, pProDbPath, custId);
+
+					log("Customer name is " + name);
+					log("ROWS UPDATED: " + rowsUpdated);
+
+					log("SET IS ACTIVE " + (set != null));
+					if (set != null) {
+						serializeSimpleActivityList(set, name, dbPass, pProDbPath);
+					}
+
+				} catch (SQLException err) {
+					err.printStackTrace();
+				}
 			}
 		}
 
@@ -613,10 +627,8 @@ public class ProspectorPro {
 		 */
 
 		/**
-		 * Here the resultSet from the previous query is split up and made into
-		 * one easily readable String When retrieving a contact, two connections
-		 * are made, one to the Contact table, and one to ContactHeader for more
-		 * information
+		 * Here the resultSet from the previous query is serialized into a
+		 * string which is sent over to the app
 		 * 
 		 * @param contactsToShow
 		 * @param notesToSend
@@ -765,7 +777,7 @@ public class ProspectorPro {
 			}
 		}
 
-		private void serializeSimpleActivity(ResultSet simpleList, String name, String dbPass, String dbPath) {
+		private void serializeSimpleActivityList(ResultSet simpleList, String name, String dbPass, String dbPath) {
 			HashMap<String, String> custIdNames = new HashMap<>();
 
 			try {
@@ -785,7 +797,9 @@ public class ProspectorPro {
 					String type = StrMods.checkForValue(simpleList.getString("Type"));
 
 					if (notes != null) {
-						notes = notes.replace(System.lineSeparator(), "§¶§");
+						log(notes);
+						notes = notes.replace(System.lineSeparator(), SavedValues.getUTF8LineSep());
+						// .replaceAll("^", SavedValues.getUTF8CaretSym());
 					}
 
 					if (activityNumber != 0) {
@@ -837,12 +851,12 @@ public class ProspectorPro {
 			log("Performing retrieve");
 
 			try {
-				ResultSet information = null;
-				if (commandSelection.equals("retrieveActivity")) {
-					information = DatabaseTools.getActivity(pProDatabasePath, dataPass, idGivenFromPhone);
-				} else {
-					information = DatabaseTools.getContact(pProDatabasePath, dataPass, idGivenFromPhone);
-				}
+				// if (commandSelection.equals("retrieveActivity")) {
+				// information = DatabaseTools.getActivity(pProDatabasePath,
+				// dataPass, idGivenFromPhone);
+				// } else {
+				ResultSet information = DatabaseTools.getContact(pProDatabasePath, dataPass, idGivenFromPhone);
+				// }
 
 				if (information.next()) {
 
@@ -854,16 +868,14 @@ public class ProspectorPro {
 					 * to be sent back to the mobile application
 					 */
 					StringBuilder notesBuilder = new StringBuilder();
-					if (!commandSelection.equals("retrieveActivity")) {
-						if (information.getObject("Notes") != null) {
-							Scanner lineScanner = new Scanner(information.getString("Notes"));
-							while (lineScanner.hasNext()) {
-								String nextLineNotes = lineScanner.nextLine()
-										.replace(System.getProperty("line.separator"), " ");
-								notesBuilder.append(nextLineNotes).append(SEPARATOR);
-							}
-							lineScanner.close();
+					if (information.getObject("Notes") != null) {
+						Scanner lineScanner = new Scanner(information.getString("Notes"));
+						while (lineScanner.hasNext()) {
+							String nextLineNotes = lineScanner.nextLine().replace(System.lineSeparator(),
+									SavedValues.getUTF8LineSep());
+							notesBuilder.append(nextLineNotes).append(SEPARATOR);
 						}
+						lineScanner.close();
 					}
 
 					/*
@@ -1289,108 +1301,6 @@ public class ProspectorPro {
 			// returns new ActivityID
 			return activityId;
 		}
-
-		/**
-		 * creates a SQL statement which edits an activity in the database
-		 * 
-		 * @param idGivenFromPhone
-		 * @return SQL statement which adds item to the database, or an empty
-		 *         string if nothing is requested to be edited
-		 */
-		private void buildSQLQuery_editActivity(String idGivenFromPhone, String dataPass, String pProDatabasePath) {
-
-			for (int index = 4; index < requestFromPhone.length; index++) {
-				// updates fields if something is entered in them
-				if (!requestFromPhone[index].trim().isEmpty()) {
-					// ensures correct syntax and that new notes are appended to
-					// old ones
-					String dataType = requestFromPhone[index].substring(0, requestFromPhone[index].indexOf(':'));
-					String contentToUpdate = requestFromPhone[index]
-							.substring(requestFromPhone[index].indexOf(':') + 1);
-
-					/*
-					 * if there are notes to enter, retrieve the notes
-					 * previously entered from the Notes table, copy them to the
-					 * new note, and enter them into another SQL Statement and
-					 * add them to the notes table
-					 */
-
-					try {
-						if (dataType.equals("Memo")) {
-							// content to update is the incremented note ID,
-							// getting
-							// it from this call
-							contentToUpdate = updateNotesTable(contentToUpdate, idGivenFromPhone, dataPass,
-									pProDatabasePath);
-						}
-						DatabaseTools.updateSpecificActivityDetails(pProDatabasePath, dataPass, dataType,
-								contentToUpdate, idGivenFromPhone);
-					} catch (SQLException err) {
-						err.printStackTrace();
-					}
-				}
-			}
-		}
-
-		/**
-		 * Creates or updates an existing note entry in the Prospector Pro
-		 * database
-		 * 
-		 * @param partTwo
-		 * @param idGivenFromPhone
-		 * @return
-		 * @throws SQLException
-		 */
-		private String updateNotesTable(String partTwo, String idGivenFromPhone, String dataPass,
-				String pProDatabasePath) throws SQLException {
-			log("Entering createOrUpdateNote method with memo " + partTwo + " and ID " + idGivenFromPhone);
-
-			ResultSet notesList = DatabaseTools.getNotesInformation(pProDatabasePath, dataPass, idGivenFromPhone);
-
-			/*
-			 * noteIdIncrement is initialized to blank, so that we can check in
-			 * the method above this one to see if any notes were added. If the
-			 * noteIdIncrement field has content in it, then notes were entered
-			 * into the database.
-			 */
-			String noteIdIncrement;
-			String noteId;
-			String originalNoteId;
-			try {
-				notesList.next();
-				noteId = notesList.getString("NoteID");
-				originalNoteId = notesList.getString("OrigNoteID");
-
-				// incrementing the NoteID
-				int noteIdPart = Integer.parseInt(noteId.substring(noteId.indexOf('_') + 1));
-
-				String noteIdInteger = "" + (noteIdPart + 1);
-				int lengthOfNumber = noteIdInteger.length();
-
-				/*
-				 * compares length of NoteID increment to its maximum possible
-				 * length pads zeros to the beginning of it until it is the same
-				 */
-				for (int amountOfZeroesToAdd = 5 - lengthOfNumber; amountOfZeroesToAdd > 0; amountOfZeroesToAdd--) {
-					noteIdInteger = "0" + noteIdInteger;
-				}
-
-				noteIdIncrement = idGivenFromPhone + "_" + noteIdInteger;
-			} catch (Exception err) {
-				log("Previous notes were not entered, creating for the first time");
-				noteIdIncrement = idGivenFromPhone + "_00001";
-				originalNoteId = noteIdIncrement;
-			}
-
-			// puts new note into new Note row, with incremented
-			// NoteID
-			log("Creating new entry in the notes table, Note ID is " + noteIdIncrement);
-
-			DatabaseTools.updateNotesTable(pProDatabasePath, dataPass, noteIdIncrement, originalNoteId, partTwo);
-			resultBuilder.append("Notes added to table. ");
-
-			return noteIdIncrement;
-		}
 	};
 
 	/*
@@ -1416,4 +1326,225 @@ public class ProspectorPro {
 		stepNumber++;
 		Write.writeLine(APP_NAME, message, counter, stepNumber);
 	}
+
+	/*
+	 * 
+	 * 
+	 * 
+	 * ************** Legacy code ******************
+	 * 
+	 * 
+	 * 
+	 */
+
+	// /**
+	// * Performs the quick search actions.
+	// *
+	// * @param id
+	// * @param dbPass
+	// * @param pProDbPath
+	// * @param command
+	// */
+	// private void activityQs(String id, String dbPass, String pProDbPath,
+	// String command) {
+	// log("Quick searching activities for contact " + id + '.');
+	//
+	// try {
+	// ResultSet activityList = DatabaseTools.searchActivities(dbPass,
+	// pProDbPath, id);
+	// serializeActivity(activityList, command, dbPass, pProDbPath);
+	// } catch (SQLException err) {
+	// err.printStackTrace();
+	// }
+	// }
+	//
+	// /**
+	// * Begins the process to edit an activity in the database.
+	// *
+	// * @param dbPass
+	// * @param pProDbPath
+	// * @param id
+	// * @param command
+	// * @param thereIsContentInTheRequest
+	// */
+	// private void editActivity(String dbPass, String pProDbPath, String id,
+	// String command,
+	// boolean thereIsContentInTheRequest) {
+	// log("Performing edit activity functions.");
+	// if (thereIsContentInTheRequest) {
+	// log("There is something to update");
+	//
+	// buildSQLQuery_editActivity(id, dbPass, pProDbPath);
+	//
+	// try {
+	// ResultSet activityInformation = DatabaseTools.getActivity(pProDbPath,
+	// dbPass, id);
+	//
+	// if (activityInformation.next()) {
+	//
+	// activityInformation.previous();
+	// resultBuilder.append("Record updated. ");
+	// serializeActivity(activityInformation, command, dbPass, pProDbPath);
+	//
+	// } else {
+	// resultBuilder.append("Try recieving the edit activity information again.
+	// ");
+	// }
+	// } catch (SQLException err) {
+	// err.printStackTrace();
+	// }
+	// } else {
+	// resultBuilder.append("Update was not requested. ");
+	// }
+	// }
+	//
+	// /**
+	// * Performs a search for a activities based on date range, or a single
+	// date.
+	// *
+	// * @param dbPass
+	// * @param pProDbPath
+	// * @param id
+	// * @param command
+	// */
+	// private void dateRangeSearch(String dbPass, String pProDbPath, String id,
+	// String command) {
+	// log("Performing date and activities search functions.");
+	//
+	// try {
+	// ResultSet search = null;
+	//
+	// if (command.equals("dateRangeSearch")) {
+	// search = DatabaseTools.searchDateRange(dbPass, pProDbPath,
+	// requestFromPhone[3], requestFromPhone[4]);
+	// } else if (command.equals("singleDateSearch")) {
+	// search = DatabaseTools.searchSingleDate(dbPass, pProDbPath,
+	// requestFromPhone[3]);
+	// }
+	//
+	// /*
+	// * Takes the contents of the resultSet and converts it into a
+	// * readable text string, which the phone can decipher when it
+	// * receives it on the other side of the connection
+	// */
+	// serializeActivity(search, command, dbPass, pProDbPath);
+	// } catch (SQLException err) {
+	// err.printStackTrace();
+	// }
+	// }
+	//
+	// /**
+	// * creates a SQL statement which edits an activity in the database
+	// *
+	// * @param idGivenFromPhone
+	// * @return SQL statement which adds item to the database, or an empty
+	// string
+	// * if nothing is requested to be edited
+	// */
+	// private void buildSQLQuery_editActivity(String idGivenFromPhone, String
+	// dataPass, String pProDatabasePath) {
+	//
+	// for (int index = 4; index < requestFromPhone.length; index++) {
+	// // updates fields if something is entered in them
+	// if (!requestFromPhone[index].trim().isEmpty()) {
+	// // ensures correct syntax and that new notes are appended to
+	// // old ones
+	// String dataType = requestFromPhone[index].substring(0,
+	// requestFromPhone[index].indexOf(':'));
+	// String contentToUpdate =
+	// requestFromPhone[index].substring(requestFromPhone[index].indexOf(':') +
+	// 1);
+	//
+	// /*
+	// * if there are notes to enter, retrieve the notes previously
+	// * entered from the Notes table, copy them to the new note, and
+	// * enter them into another SQL Statement and add them to the
+	// * notes table
+	// */
+	//
+	// try {
+	// if (dataType.equals("Memo")) {
+	// // content to update is the incremented note ID,
+	// // getting
+	// // it from this call
+	// contentToUpdate = updateNotesTable(contentToUpdate, idGivenFromPhone,
+	// dataPass,
+	// pProDatabasePath);
+	// }
+	// DatabaseTools.updateSpecificActivityDetails(pProDatabasePath, dataPass,
+	// dataType, contentToUpdate,
+	// idGivenFromPhone);
+	// } catch (SQLException err) {
+	// err.printStackTrace();
+	// }
+	// }
+	// }
+	// }
+	//
+	// /**
+	// * Creates or updates an existing note entry in the Prospector Pro
+	// database
+	// *
+	// * @param partTwo
+	// * @param idGivenFromPhone
+	// * @return
+	// * @throws SQLException
+	// */
+	// private String updateNotesTable(String partTwo, String idGivenFromPhone,
+	// String dataPass, String pProDatabasePath)
+	// throws SQLException {
+	// log("Entering createOrUpdateNote method with memo " + partTwo + " and ID
+	// " + idGivenFromPhone);
+	//
+	// ResultSet notesList = DatabaseTools.getNotesInformation(pProDatabasePath,
+	// dataPass, idGivenFromPhone);
+	//
+	// /*
+	// * noteIdIncrement is initialized to blank, so that we can check in the
+	// * method above this one to see if any notes were added. If the
+	// * noteIdIncrement field has content in it, then notes were entered into
+	// * the database.
+	// */
+	// String noteIdIncrement;
+	// String noteId;
+	// String originalNoteId;
+	// try {
+	// notesList.next();
+	// noteId = notesList.getString("NoteID");
+	// originalNoteId = notesList.getString("OrigNoteID");
+	//
+	// // incrementing the NoteID
+	// int noteIdPart = Integer.parseInt(noteId.substring(noteId.indexOf('_') +
+	// 1));
+	//
+	// String noteIdInteger = "" + (noteIdPart + 1);
+	// int lengthOfNumber = noteIdInteger.length();
+	//
+	// /*
+	// * compares length of NoteID increment to its maximum possible
+	// * length pads zeros to the beginning of it until it is the same
+	// */
+	// for (int amountOfZeroesToAdd = 5 - lengthOfNumber; amountOfZeroesToAdd >
+	// 0; amountOfZeroesToAdd--) {
+	// noteIdInteger = "0" + noteIdInteger;
+	// }
+	//
+	// noteIdIncrement = idGivenFromPhone + "_" + noteIdInteger;
+	// } catch (Exception err) {
+	// log("Previous notes were not entered, creating for the first time");
+	// noteIdIncrement = idGivenFromPhone + "_00001";
+	// originalNoteId = noteIdIncrement;
+	// }
+	//
+	// // puts new note into new Note row, with incremented
+	// // NoteID
+	// log("Creating new entry in the notes table, Note ID is " +
+	// noteIdIncrement);
+	//
+	// DatabaseTools.updateNotesTable(pProDatabasePath, dataPass,
+	// noteIdIncrement, originalNoteId, partTwo);
+	// resultBuilder.append("Notes added to table. ");
+	//
+	// return noteIdIncrement;
+	// }
 }

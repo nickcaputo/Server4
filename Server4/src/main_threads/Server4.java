@@ -44,6 +44,7 @@ import javax.swing.*;
 import app_threads.ProspectorPro;
 import app_threads.Inventory;
 import app_threads.Timecard;
+import tools.SavedValues;
 import tools.DatabaseTools;
 import tools.Ping;
 import tools.Write;
@@ -51,18 +52,6 @@ import tools.Write;
 public class Server4 extends Thread {
 
 	private static final String APP_NAME = "Main Server";
-
-	private static final int PORT = 4242;
-	private static final String AUTH_IP = "mobile.getrain.com";
-	private static final int AUTH_PORT = 4141;
-	private static final String SEPARATOR = "^";
-	private static final String ITEM_SEP = "|";
-	private static final String ITEM_DELIMITER = "\\" + ITEM_SEP;
-	// private static final String LINE_BREAK_SEP = "§¶§";
-	private static final String GUI_NOTICE = "<html><body style='width:325px; "
-			+ "padding:25px'>This is the server application.  It handles all of the "
-			+ "requests from the mobile apps for Rainmaker Software.  Exit out of this "
-			+ "window to stop the service.</body></html>";
 
 	private static ServerSocket welcomeSocket;
 	private static Map<Long, ProspectorPro> pProThreads;
@@ -99,7 +88,7 @@ public class Server4 extends Thread {
 	public static void main(String arguments[]) {
 		setUpGlobals();
 
-		setUpWelcomeSocket(PORT);
+		setUpWelcomeSocket(SavedValues.getPort());
 
 		checkDatabaseConnectivity();
 
@@ -234,7 +223,7 @@ public class Server4 extends Thread {
 					new InputStreamReader(sockets.get(counter).getInputStream()));
 
 			values = inFromClient.readLine();
-			log("recieved command " + values + " from IP " + sockets.get(counter).getInetAddress());
+			Ping.logRequest(values, sockets.get(counter));
 
 			String command = "no command";
 
@@ -248,7 +237,7 @@ public class Server4 extends Thread {
 		private void startProperAppThread(String command) {
 			log("startProperAppThread method starting");
 
-			String[] connectionData = values.split(ITEM_DELIMITER);
+			String[] connectionData = values.split(SavedValues.getItemDelimiter());
 			if (connectionData.length >= 2) {
 				command = connectionData[1];
 			}
@@ -319,7 +308,7 @@ public class Server4 extends Thread {
 		 */
 		public void startConnection() throws InterruptedException {
 
-			JLabel label = new JLabel(GUI_NOTICE, SwingConstants.CENTER);
+			JLabel label = new JLabel(SavedValues.getGUINotice(), SwingConstants.CENTER);
 			JButton askToAddUser = new JButton("Request to add a user");
 			Dimension standard = new Dimension(425, 150);
 
@@ -589,7 +578,7 @@ public class Server4 extends Thread {
 					 * if email matches confirm, and password matches confirm
 					 */
 					try {
-						Socket clientSocket = new Socket(AUTH_IP, AUTH_PORT);
+						Socket clientSocket = new Socket(SavedValues.getAuthIp(), SavedValues.getAuthPort());
 
 						PrintWriter outToAuth = new PrintWriter(clientSocket.getOutputStream());
 
@@ -597,10 +586,11 @@ public class Server4 extends Thread {
 						 * sending values to server
 						 */
 						try {
-							outToAuth.println("newUser" + SEPARATOR + "name:" + nameOfSalespersonToAdd + SEPARATOR
-									+ "requestedEMail:" + eMailEntered + SEPARATOR + "requestedPass:" + pass + SEPARATOR
-									+ "isASalesManager:" + isASalesManager + SEPARATOR + "shouldShowLocation:"
-									+ shouldShowLocation + SEPARATOR + "company:" + companyOfSalespersonToAdd);
+							String sep = SavedValues.getContentSeparator();
+							outToAuth.println("newUser" + sep + "name:" + nameOfSalespersonToAdd + sep
+									+ "requestedEMail:" + eMailEntered + sep + "requestedPass:" + pass + sep
+									+ "isASalesManager:" + isASalesManager + sep + "shouldShowLocation:"
+									+ shouldShowLocation + sep + "company:" + companyOfSalespersonToAdd);
 
 							outToAuth.flush();
 						} catch (Exception e) {
@@ -640,7 +630,8 @@ public class Server4 extends Thread {
 		public void run() {
 			while (true) {
 				try {
-					Thread.sleep(1800000); // wait for 30 minutes
+					Thread.sleep(SavedValues.getTimeToRefresh()); // wait for 30
+																	// minutes
 					DatabaseTools.initializeAllDatabases();
 				} catch (InterruptedException err) {
 					err.printStackTrace();
@@ -702,14 +693,32 @@ public class Server4 extends Thread {
 	 */
 	public static void removeThread(String type, long counter) {
 		log("removing thread " + type + " with counter " + counter);
-		if (type.equals("ProspectorPro")) {
+
+		switch (type) {
+
+		case "ProspectorPro":
 			pProThreads.remove(counter);
-		} else if (type.equals("Inventory")) {
+			log("Prospector Pro thread removed successfully." + System.lineSeparator());
+			break;
+
+		case "Inventory":
 			inventoryThreads.remove(counter);
-		} else if (type.equals("Timecard")) {
+			log("Inventory thread removed successfully." + System.lineSeparator());
+			break;
+
+		case "Timecard":
 			timecardThreads.remove(counter);
+			log("Timecard thread removed successfully." + System.lineSeparator());
+			break;
+
+		default:
+			log("Remove thread method called, but the request was " + type + System.lineSeparator());
+			break;
+
 		}
 
+		// Execute garbage collection to make sure we are being efficient with
+		// space.
 		System.gc();
 	}
 

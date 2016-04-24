@@ -38,7 +38,8 @@ public class DatabaseTools {
 	 * @throws SQLException
 	 */
 	public static Connection initialize(String dataPass, String path) throws SQLException {
-		Connection root = DriverManager.getConnection("jdbc:ucanaccess://" + path + ";memory=false", "", dataPass);
+		Connection root = DriverManager.getConnection("jdbc:ucanaccess://" + path /* + ";memory=false" */, "",
+				dataPass);
 		return root;
 	}
 
@@ -320,6 +321,7 @@ public class DatabaseTools {
 	 *             in case of a bad connection or a malformed SQL statement.
 	 */
 	public static String getCustomerNameFromId(String dataPass, String path, String customerId) throws SQLException {
+
 		Connection root = initialize(dataPass, path);
 
 		String getNameSQL = "SELECT Fname, Middle, Lname FROM Contact WHERE CustId=?";
@@ -372,6 +374,169 @@ public class DatabaseTools {
 
 	public static ResultSet searchSingleDate_noQueries(String dataPass, String path, String date) throws SQLException {
 		return searchDateRange_noQueries(dataPass, path, date, date);
+	}
+
+	/**
+	 * Updates the notes in the Call, Correspondence or Tasks table.
+	 * 
+	 * @param dataPass
+	 *            = the password to the database
+	 * @param path
+	 *            = the path to the database on the machine
+	 * @param note
+	 *            = the note to enter
+	 * @param activityType
+	 *            = Call, Correspondence or Task
+	 * @param id
+	 *            = CallId, TaskId, or CorrId
+	 * @return how many rows were updated (should be 1)
+	 * @throws SQLException,
+	 *             in case of connection reset or invalid query
+	 */
+	public static int updateActivityNotes_noQueries(String dataPass, String path, String id, String activityType,
+			String note) throws SQLException {
+		log("updateActivityNotes_noQueries method started with note " + note + " activityType: " + activityType
+				+ " and ID: " + id);
+
+		Connection root = initialize(dataPass, path);
+		String statement = null;
+
+		switch (activityType) {
+		case "Call":
+			statement = "UPDATE Calls SET Notes=? WHERE CallId=?";
+			break;
+		case "Correspondence":
+			statement = "UPDATE Correspondence SET Memo=? WHERE CorrId=?";
+			break;
+		case "Task":
+			statement = "UPDATE Tasks SET Notes=? WHERE TaskId=?";
+			break;
+		}
+
+		if (statement != null) {
+			PreparedStatement run = root.prepareStatement(statement);
+
+			run.setString(1, note);
+			run.setString(2, id);
+
+			return run.executeUpdate();
+		} else {
+			return 0;
+		}
+
+	}
+
+	public static ResultSet getSimpleActivity_noQueries(String dbPass, String path, String activityType, String id)
+			throws SQLException {
+		log("getSimpleActivity_noQueries method starting with activityType " + activityType + " and ID: " + id);
+		Connection root = initialize(dbPass, path);
+		String statement = null;
+		ResultSet set = null;
+
+		switch (activityType) {
+
+		case "Call":
+			statement = "SELECT CustId, CallId AS SpecificId, SlsId, Phone AS Essentials, "
+					+ "SchedDate AS ScheduledDate, CompletedDate, Time AS ScheduledTime, 'NotCorr' AS "
+					+ "TypeCorr, Notes, 'Call' AS Type FROM Calls WHERE CallId=?";
+			break;
+
+		case "Task":
+			statement = "SELECT CustId, TaskId AS SpecificId, SlsId, Location AS Essentials, "
+					+ "DateSch AS ScheduledDate, DateCompleted AS CompletedDate, TimeSch AS ScheduledTime, "
+					+ "'NotCorr' AS TypeCorr, Notes, 'Task' AS Type FROM Tasks WHERE TaskId=?";
+			break;
+
+		case "Correspondence":
+			statement = "SELECT CustId, CorrId AS SpecificId, SlsId, DocPath AS Essentials, CorrSch AS "
+					+ "ScheduledDate, CorrComp AS CompletedDate, NULL AS ScheduledTime, TypeCorr, Memo AS "
+					+ "Notes, 'Correspondence' AS Type FROM Correspondence WHERE CorrId=?";
+			break;
+
+		default:
+			log("Activity type was " + activityType
+					+ ", to get a simple activity, it must be either Call, Task or Correspondence");
+		}
+
+		if (statement != null) {
+			PreparedStatement preparedStatement = root.prepareStatement(statement);
+			preparedStatement.setString(1, id);
+
+			set = preparedStatement.executeQuery();
+		}
+
+		return set;
+	}
+
+	// TODO Add a method to change the date on an activity
+	public static int changeActivityDate_noQueries(String dbPass, String path, String activityType, String id,
+			boolean completed, String dateToEnter) throws SQLException {
+		// date is yyyy-MM-dd HH:mm:00.000
+
+		log("changeScheduledDate_noQueries method starting with activityType " + activityType + " and ID " + id);
+		log("date is set to be " + dateToEnter);
+		Connection root = initialize(dbPass, path);
+		String statement = null;
+		PreparedStatement changeDate;
+		int rowsUpdated = 0;
+
+		switch (activityType) {
+
+		case "Call":
+
+			if (completed) {
+				statement = "UPDATE Calls SET CompletedDate=?, TimeC=? WHERE CallId=?";
+			} else {
+				statement = "UPDATE Calls SET SchedDate=?, Time=? WHERE CallId=?";
+			}
+
+			changeDate = root.prepareStatement(statement);
+			changeDate.setString(1, dateToEnter);
+			changeDate.setString(2, dateToEnter);
+			changeDate.setString(3, id);
+
+			rowsUpdated = changeDate.executeUpdate();
+
+			return rowsUpdated;
+
+		case "Task":
+
+			if (completed) {
+				statement = "UPDATE Tasks SET TimeC=?, DateCompleted=? WHERE TaskId=?";
+			} else {
+				statement = "UPDATE Tasks SET DateSch=?, TimeSch=? WHERE TaskId=?";
+			}
+
+			changeDate = root.prepareStatement(statement);
+			changeDate.setString(1, dateToEnter);
+			changeDate.setString(2, dateToEnter);
+			changeDate.setString(3, id);
+
+			rowsUpdated = changeDate.executeUpdate();
+
+			return rowsUpdated;
+
+		case "Correspondence":
+
+			if (completed) {
+				statement = "UPDATE Correspondence SET CorrComp=? WHERE CorrId=?";
+			} else {
+				statement = "UPDATE Correspondence SET CorrSch=? WHERE CorrId=?";
+			}
+			
+			changeDate = root.prepareStatement(statement);
+			changeDate.setString(1, dateToEnter);
+			changeDate.setString(2, id);
+
+			rowsUpdated = changeDate.executeUpdate();
+
+			return rowsUpdated;
+
+		default:
+			log("Activity type was " + activityType
+					+ ", to change a date, it must be either Call, Task or Correspondence");
+			return 0;
+		}
 	}
 
 	/**
@@ -751,7 +916,7 @@ public class DatabaseTools {
 			String udd_text5, String weblinkID, String origDate, String formLoc1, String formLoc2, String formLoc3,
 			String formLoc4, String formLoc5, String formLoc6, String formLoc7, String formLoc8, String formLoc9,
 			String formLoc10, String ph_Street, String ph_City, String ph_State, String ph_ZipCode, int score)
-					throws SQLException {
+			throws SQLException {
 
 		log("new contact method reached, giant PreparedStatement now compiling.");
 

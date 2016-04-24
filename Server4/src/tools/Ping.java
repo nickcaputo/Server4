@@ -10,6 +10,8 @@ import java.net.Socket;
 public class Ping {
 
 	private static final String CLASS_SIG = "Ping";
+	private static long nullRequests = 0;
+//	private static HashMap<InetAddress, Long> requests = new HashMap<>();
 
 	/**
 	 * Sends a specified message back to the client. Called from the public
@@ -32,7 +34,7 @@ public class Ping {
 			 * get string from CLIENT for server command and information to use
 			 */
 			String message = inFromClient.readLine();
-			Write.writeLine(CLASS_SIG, "recieved request " + message + " from IP " + connectionSocket.getInetAddress()
+			log("recieved request " + message + " from IP " + connectionSocket.getInetAddress()
 					+ " while data is initializing, sending wait command back.");
 			outToClient.println(command);
 			outToClient.flush();
@@ -43,6 +45,29 @@ public class Ping {
 			connectionSocket.close();
 		} catch (IOException e) {
 			e.printStackTrace();
+		}
+	}
+
+	public static void logRequest(String values, Socket socket) {
+//		InetAddress address = socket.getInetAddress();
+//		Long count = requests.get(address);
+
+//		if (count != null) {
+//			log("Getting a request from an IP we have seen before");
+//			count++;
+//			requests.replace(address, count);
+//		} else {
+//			log("Getting a request from a new IP address");
+//			count = new Long(1);
+//			requests.put(address, count);
+//		}
+
+		if (values != null) {
+			log("recieved command " + values + " from IP " + socket.getInetAddress());
+		} else {
+			nullRequests++;
+			log("recieved null request from IP " + socket.getInetAddress() + " total null requests so far: "
+					+ nullRequests);
 		}
 	}
 
@@ -76,6 +101,10 @@ public class Ping {
 	 */
 	public static void sendErrorMessage(ServerSocket welcomeSocket) {
 		sendMessageToClient(welcomeSocket, "Error in initializing databases.");
+	}
+
+	private static void log(String message) {
+		Write.writeLine(CLASS_SIG, message);
 	}
 
 }

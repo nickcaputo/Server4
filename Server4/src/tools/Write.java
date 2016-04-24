@@ -1,10 +1,51 @@
 package tools;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.time.LocalDateTime;
 
 public class Write {
 
-	private static final boolean SHOW_LOGS = true;
+	private static boolean logFileInitialized = false;
+	private static File log;
+	private static FileWriter logWriter;
+
+	/**
+	 * This method creates an external file to write log messages with.
+	 */
+	private static void initializeLogFile() {
+		if (!logFileInitialized) {
+			try {
+				log = new File(System.currentTimeMillis() + "_log.log");
+				logWriter = new FileWriter(log);
+				log.createNewFile();
+				logFileInitialized = true;
+			} catch (IOException err) {
+				err.printStackTrace();
+				logFileInitialized = false;
+			}
+		}
+	}
+
+	/**
+	 * This method takes a string that would normally be printed out to the
+	 * console and prints it to an external file.
+	 * 
+	 * @param message,
+	 *            the string to print
+	 */
+	private static void writeToLogFile(String message) {
+		initializeLogFile();
+
+		if (logFileInitialized) {
+			try {
+				logWriter.write(message + System.lineSeparator());
+			} catch (IOException err) {
+				err.printStackTrace();
+			}
+		}
+	}
 
 	/**
 	 * prints a message to the console with the date, time, app label, server
@@ -20,9 +61,11 @@ public class Write {
 	 *            the step number for the app
 	 */
 	public static void writeLine(String appName, String message, long counter, short stepNumber) {
-		if (SHOW_LOGS) {
-			System.out.println('[' + LocalDateTime.now().toString().replace('T', ' ') + " : " + appName + " with ID "
-					+ counter + " (Step " + stepNumber + ")] " + message);
+		String toPrint = '[' + LocalDateTime.now().toString().replace('T', ' ') + " : " + appName + " with ID "
+				+ counter + " (Step " + stepNumber + ")] " + message;
+		if (SavedValues.shouldShowLogs()) {
+			System.out.println(toPrint);
+			writeToLogFile(toPrint);
 		}
 	}
 
@@ -70,9 +113,10 @@ public class Write {
 	 *            the message to display
 	 */
 	public static void writeLine(String appName, String message) {
-		if (SHOW_LOGS) {
-			System.out
-					.println('[' + LocalDateTime.now().toString().replace('T', ' ') + " : " + appName + "] " + message);
+		String toPrint = '[' + LocalDateTime.now().toString().replace('T', ' ') + " : " + appName + "] " + message;
+		if (SavedValues.shouldShowLogs()) {
+			System.out.println(toPrint);
+			writeToLogFile(toPrint);
 		}
 	}
 
@@ -116,9 +160,11 @@ public class Write {
 	 *            the step number for the app
 	 */
 	public static void quickWrite(String appName, String message, long counter, short stepNumber) {
-		if (SHOW_LOGS) {
-			System.out.println('[' + System.currentTimeMillis() + " : " + appName + " with ID " + counter + " (Step "
-					+ stepNumber + ")] " + message);
+		if (SavedValues.shouldShowLogs()) {
+			String toPrint = '[' + System.currentTimeMillis() + " : " + appName + " with ID " + counter + " (Step "
+					+ stepNumber + ")] " + message;
+			System.out.println(toPrint);
+			writeToLogFile(toPrint);
 		}
 	}
 
@@ -166,8 +212,9 @@ public class Write {
 	 *            the message to display
 	 */
 	public static void quickWrite(String appName, String message) {
-		if (SHOW_LOGS) {
-			System.out.println('[' + System.currentTimeMillis() + " : " + appName + "] " + message);
+		if (SavedValues.shouldShowLogs()) {
+			String toPrint = '[' + System.currentTimeMillis() + " : " + appName + "] " + message;
+			System.out.println(toPrint);
 		}
 	}
 
